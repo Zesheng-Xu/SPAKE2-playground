@@ -8,8 +8,12 @@ import (
 type Suite struct {
 	Name     string
 	Curve    elliptic.Curve
+	L        int //key length
 	Add      func(point1, point2 *Point) (resultPoint *Point)
 	Multiply func(point1 *Point, N *big.Int) (resultPoint *Point)
+	Hash     func(str string) [32]byte
+	KDF      func(tt string) ([]byte, []byte, []byte)
+	MAC      func(kca []byte, kcb []byte, tt []byte) bool
 }
 
 func (s *Suite) GetName() string {

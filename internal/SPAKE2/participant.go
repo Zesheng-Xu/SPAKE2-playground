@@ -3,25 +3,28 @@ package spake2
 import (
 	"SPAKE2-playground/internal/suite"
 	"crypto/rand"
-	"crypto/sha256"
 	"math/big"
 	"strconv"
 )
 
 type Participant struct {
-	Suite            *suite.Suite
-	BigPrime         *big.Int
-	X                *big.Int // random factor chosen between [0, p)
-	H                *big.Int
-	W                *big.Int
-	M                *suite.Point
-	WM               *suite.Point
-	Pa               *suite.Point
-	Pb               *suite.Point
-	K                string
-	Role             suite.Role
-	Identity         string
-	OpponentIdentity string
+	Suite                   *suite.Suite
+	BigPrime                *big.Int
+	X                       *big.Int // random factor chosen between [0, p)
+	H                       *big.Int
+	W                       *big.Int
+	M                       *suite.Point
+	WM                      *suite.Point
+	Pa                      *suite.Point
+	Pb                      *suite.Point
+	K                       string
+	TT                      string
+	Role                    suite.Role
+	Identity                string
+	OpponentIdentity        string
+	SessionConfirmationKey  []byte
+	ExpectedConfirmationKey []byte
+	SessionPrivateKey       []byte
 }
 
 type SetUpParams struct {
@@ -39,14 +42,14 @@ func (user *Participant) SetUp(param *SetUpParams) {
 	user.Role = param.Role
 	user.BigPrime = param.Prime
 	user.H = new(big.Int).Div(user.Suite.Curve.Params().N, param.Prime)
-	user.W = ComputeW(param.Pw, param.Prime)
 	user.M = param.M
+	user.W = user.ComputeW(param.Pw, param.Prime)
 
 }
 
 // ComputeW computes W that will be shared between server and client derived from password
-func ComputeW(pw string, p *big.Int) *big.Int {
-	hash := sha256.Sum256([]byte(pw))
+func (user *Participant) ComputeW(pw string, p *big.Int) *big.Int {
+	hash := user.Suite.Hash(pw)
 	w := new(big.Int).SetBytes(hash[:])
 	w.Mod(w, p)
 
@@ -113,13 +116,43 @@ func (user *Participant) ComputeTranscript() (tt string) {
 		return ""
 	}
 
-	tt = strconv.Itoa(len(a)) + a +
+	user.TT = strconv.Itoa(len(a)) + a +
 		strconv.Itoa(len(b)) + b +
 		strconv.Itoa(len(pA.String())) + pA.String() +
 		strconv.Itoa(len(pB.String())) + pB.String() +
 		strconv.Itoa(len(user.K)) + user.K +
-		strconv.Itoa(len(user.W.String())) + user.W.String()
+		strconv.Itoa(len(user.W.String())) + string(user.W.Bytes())
 
-	return tt
+	return user.TT
+}
+
+// DeriveKeys generate 3 byte arrays:
+// Ke: session key that be used to encrypt and decrypt the messages
+// kca: this participant's half of the confirmation key
+// kcb: other participant's half of the confirmation key
+func (user *Participant) DeriveKeys() (ke, kca, kcb []byte) {
+
+	ke, kca, kcb = user.Suite.KDF(user.TT)
+
+	user.SessionPrivateKey = ke
+
+	switch user.Role {
+	case suite.Client:
+		// switch order on client since Client is b
+		user.SessionConfirmationKey = kcb
+		user.ExpectedConfirmationKey = kca
+	default:
+		user.SessionConfirmationKey = kca
+		user.ExpectedConfirmationKey = kcb
+	}
+
+	return ke, kca, kcb
+
+}
+
+// ConfirmMAC takes received bytes and check if it matches to this participant's half of confirmation key
+func (user *Participant) ConfirmMAC(receiveConfirmationKey []byte) bool {
+
+	return user.Suite.MAC(receiveConfirmationKey, user.ExpectedConfirmationKey, []byte(user.TT))
 
 }

@@ -7,6 +7,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/subtle"
 	"fmt"
 	"math/big"
 )
@@ -73,8 +74,18 @@ func main() {
 
 	stt := server.ComputeTranscript()
 
-	ctt := server.ComputeTranscript()
+	ctt := client.ComputeTranscript()
 
 	println(fmt.Sprintf("Server TT to input KDF: %s, \n Client TT to input KDF: %s,", stt, ctt))
 
+	ske, skca, skcb := server.DeriveKeys()
+
+	cke, ckca, ckcb := client.DeriveKeys()
+
+	println(subtle.ConstantTimeCompare(ske, cke) == 1)
+	println(subtle.ConstantTimeCompare(skca, ckca) == 1)
+	println(subtle.ConstantTimeCompare(skcb, ckcb) == 1)
+
+	println("Server confirm Client MAC:", server.ConfirmMAC(skcb))
+	println("Client confirm Server MAC:", client.ConfirmMAC(skca))
 }
