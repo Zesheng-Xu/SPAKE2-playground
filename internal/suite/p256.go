@@ -19,6 +19,7 @@ type P256Suite struct {
 const L = 256 // len(Kc) defiend by RFC 9382
 
 func NewP256Suite() *Suite {
+	// IDK how to make this easier
 	s := &P256Suite{}
 	s.Suite.Name = "P256"
 	s.Suite.Curve = elliptic.P256()
@@ -27,6 +28,7 @@ func NewP256Suite() *Suite {
 	s.Suite.Hash = s.Hash
 	s.Suite.KDF = s.KDF
 	s.Suite.MAC = s.MAC
+	s.Suite.IsOnCurve = s.IsOnCurve
 	s.Suite.L = L
 	return &s.Suite
 
@@ -39,27 +41,82 @@ func (s *P256Suite) Init() *P256Suite {
 	return s
 }
 
-// Name returns the name of the Suite.
-func (s *P256Suite) Name() string {
-	return s.Suite.Name
-}
+// IsOnCurve Checks if the provided point lies on the EC
+func (s *P256Suite) IsOnCurve(p *Point) bool {
 
-// Curve returns the elliptic curve of the Suite.
-func (s *P256Suite) Curve() elliptic.Curve {
-	return s.Suite.Curve
+	// Equation for P256 is  y ^ 2 = x ^ 3 - 3x + b mod q
+
+	// y ^ 2 mod p
+	left := new(big.Int).Exp(p.Y, big.NewInt(2), s.Curve.Params().P)
+
+	// x ^ 3
+	right := new(big.Int).Exp(p.X, big.NewInt(3), s.Curve.Params().P)
+
+	// - 3x
+	right = right.Sub(right, new(big.Int).Mul(p.X, big.NewInt(3)))
+
+	// + b
+	right = right.Add(right, s.Curve.Params().B)
+
+	// mod q
+	right = right.Mod(right, s.Curve.Params().P)
+
+	return left.Cmp(right) == 0
 }
 
 // Add adds two points on the elliptic curve.
-func (s *P256Suite) Add(point1, point2 *Point) *Point {
+func (s *P256Suite) Add(p1, p2 *Point) *Point {
 
-	x, y := s.Suite.Curve.Add(point1.X, point1.Y, point2.X, point2.Y)
-	return &Point{X: x, Y: y}
+	var slope, x3, y3 big.Int
+
+	p := s.Curve.Params().P
+
+	if p1.X.Cmp(p2.X) == 0 && p1.Y.Cmp(p2.Y) == 0 { // p1 is equal to p2
+		// slope = (3 * x1^2 + a) / 2 * y1
+		slope.Mul(p1.X, p1.X)                         // x1^2
+		slope.Mul(&slope, big.NewInt(3))              // 3 * x1^2
+		slope.Add(&slope, big.NewInt(-3))             // 3 * x1^2 + a
+		temp := new(big.Int).Mul(p1.Y, big.NewInt(2)) // 2 * y1
+		temp.ModInverse(temp, p)                      // (2 * y1)^-1
+		slope.Mul(&slope, temp)                       // (3 * x1^2 + a) / 2 * y1
+		slope.Mod(&slope, p)
+	} else {
+		// slope = (y2 - y1) / (x2 - x1)
+		slope.Sub(p2.Y, p1.Y)                // y2 - y1
+		temp := new(big.Int).Sub(p2.X, p1.X) // x2 - x1
+		temp.ModInverse(temp, p)             // (x2 - x1)^-1
+		slope.Mul(&slope, temp)              // (y2 - y1) / (x2 - x1)
+		slope.Mod(&slope, p)
+	}
+
+	// x3 = slope^2 - x1 - x2
+	x3.Mul(&slope, &slope) // slope^2
+	x3.Sub(&x3, p1.X)      // slope^2 - x1
+	x3.Sub(&x3, p2.X)      // slope^2 - x1 - x2
+	x3.Mod(&x3, p)
+
+	// y3 = slope * (x1 - x3) - y1
+	y3.Sub(p1.X, &x3)   // x1 - x3
+	y3.Mul(&slope, &y3) // slope * (x1 - x3)
+	y3.Sub(&y3, p1.Y)   // slope * (x1 - x3) - y1
+	y3.Mod(&y3, p)
+
+	return &Point{&x3, &y3}
 }
 
 // Multiply multiplies a point by a scalar on the elliptic curve.
-func (s *P256Suite) Multiply(point1 *Point, N *big.Int) *Point {
-	x, y := s.Suite.Curve.ScalarMult(point1.X, point1.Y, N.Bytes())
-	return &Point{X: x, Y: y}
+func (s *P256Suite) Multiply(p1 *Point, n *big.Int) *Point {
+
+	// Initialize result as the "point at infinity"
+	result := &Point{big.NewInt(0), big.NewInt(0)}
+
+	// TODO: Implement the double and add algorithm and remove the deprecated function
+
+	result.X, result.Y = s.Curve.ScalarMult(p1.X, p1.Y, n.Bytes())
+
+	// Return the resulting point
+	return result
+
 }
 
 // Hash defines the hash function used for this suite, following RFC 9382

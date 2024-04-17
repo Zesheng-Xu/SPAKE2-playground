@@ -36,8 +36,14 @@ func main() {
 		Suite: suite.P256,
 	}
 
-	server.SetUp(sharedParam)
-	client.SetUp(sharedParam)
+	err = server.SetUp(sharedParam)
+	if err != nil {
+		println(err.Error())
+	}
+	err = client.SetUp(sharedParam)
+	if err != nil {
+		println(err.Error())
+	}
 
 	server.Role = suite.Server // This Determines the A and B when generating Transcript
 	client.Role = suite.Client

@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -41,15 +42,19 @@ type SetUpParams struct {
 }
 
 // SetUp function sets the shared elements of the SPAKE
-func (user *Participant) SetUp(param *SetUpParams) {
+func (user *Participant) SetUp(param *SetUpParams) error {
 
 	user.Suite = suite.SelectECCSuite(param.Suite)
 	user.Role = param.Role
 	user.BigPrime = param.Prime
 	user.H = new(big.Int).Div(user.Suite.Curve.Params().N, param.Prime)
 	user.M = param.M
+	if !user.Suite.IsOnCurve(user.M) {
+		return errors.New("provided M does not exist on curve " + user.Suite.GetName())
+	}
 	user.W = user.ComputeW(param.Pw, param.Prime)
 
+	return nil
 }
 
 // ComputeW computes W that will be shared between server and client derived from password
