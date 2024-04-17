@@ -7,7 +7,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/subtle"
 	"fmt"
 	"math/big"
 )
@@ -59,7 +58,7 @@ func main() {
 		println(err.Error())
 	}
 
-	print("Selected ECC: " + server.Suite.Name)
+	println("Selected ECC: " + server.Suite.Name)
 
 	println(fmt.Sprintf("Server p - big prime: %s, \n Client p - big prime: %s,", server.BigPrime, client.BigPrime))
 	println(fmt.Sprintf("Server w derived from password: %s, \n Client w derived from password: %s,", server.W, client.W))
@@ -78,14 +77,19 @@ func main() {
 
 	println(fmt.Sprintf("Server TT to input KDF: %s, \n Client TT to input KDF: %s,", stt, ctt))
 
-	ske, skca, skcb := server.DeriveKeys()
+	server.DeriveKeys()
 
-	cke, ckca, ckcb := client.DeriveKeys()
+	client.DeriveKeys()
 
-	println(subtle.ConstantTimeCompare(ske, cke) == 1)
-	println(subtle.ConstantTimeCompare(skca, ckca) == 1)
-	println(subtle.ConstantTimeCompare(skcb, ckcb) == 1)
+	sMac, _ := server.ConfirmMAC(client.ProduceMacMessage())
+	cMac, _ := client.ConfirmMAC(server.ProduceMacMessage())
 
-	println("Server confirm Client MAC:", server.ConfirmMAC(skcb))
-	println("Client confirm Server MAC:", client.ConfirmMAC(skca))
+	println("Server confirm Client MAC:", sMac)
+	println("Client confirm Server MAC:", cMac)
+
+	message, _ := client.Encrypt([]byte("Hello World"))
+	println("Client send encrypted text:" + string(message))
+
+	message, _ = server.Decrypt(message)
+	println("Server decrypted text:" + string(message))
 }

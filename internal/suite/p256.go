@@ -51,6 +51,7 @@ func (s *P256Suite) Curve() elliptic.Curve {
 
 // Add adds two points on the elliptic curve.
 func (s *P256Suite) Add(point1, point2 *Point) *Point {
+
 	x, y := s.Suite.Curve.Add(point1.X, point1.Y, point2.X, point2.Y)
 	return &Point{X: x, Y: y}
 }

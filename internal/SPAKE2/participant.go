@@ -2,7 +2,12 @@ package spake2
 
 import (
 	"SPAKE2-playground/internal/suite"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"io"
 	"math/big"
 	"strconv"
 )
@@ -147,12 +152,81 @@ func (user *Participant) DeriveKeys() (ke, kca, kcb []byte) {
 	}
 
 	return ke, kca, kcb
+}
 
+func (user *Participant) Encrypt(plainText []byte) ([]byte, error) {
+	block, err := aes.NewCipher(user.SessionPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	ciphertext := make([]byte, aes.BlockSize+len(plainText))
+	iv := ciphertext[:aes.BlockSize]
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return nil, err
+	}
+
+	stream := cipher.NewCFBEncrypter(block, iv)
+	stream.XORKeyStream(ciphertext[aes.BlockSize:], plainText)
+
+	return ciphertext, nil
+}
+
+func (user *Participant) Decrypt(ciphertext []byte) ([]byte, error) {
+	block, err := aes.NewCipher(user.SessionPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(ciphertext) < aes.BlockSize {
+		return nil, fmt.Errorf("ciphertext too short")
+	}
+
+	iv := ciphertext[:aes.BlockSize]
+	ciphertext = ciphertext[aes.BlockSize:]
+
+	stream := cipher.NewCFBDecrypter(block, iv)
+	stream.XORKeyStream(ciphertext, ciphertext)
+
+	return ciphertext, nil
 }
 
 // ConfirmMAC takes received bytes and check if it matches to this participant's half of confirmation key
-func (user *Participant) ConfirmMAC(receiveConfirmationKey []byte) bool {
+func (user *Participant) ConfirmMAC(receivedMAC []byte) (bool, error) {
 
-	return user.Suite.MAC(receiveConfirmationKey, user.ExpectedConfirmationKey, []byte(user.TT))
+	receivedKey, err := user.Decrypt(receivedMAC)
+	if err != nil {
+		return false, err
+	}
 
+	return user.Suite.MAC([]byte(receivedKey), user.ExpectedConfirmationKey, []byte(user.TT)), nil
+
+}
+
+func (user *Participant) ProduceMacMessage() []byte {
+
+	msg, err := user.Encrypt(user.SessionConfirmationKey)
+	if err != nil {
+		return nil
+	}
+
+	return msg
+}
+
+func Encode(b []byte) []byte {
+
+	out := []byte{}
+
+	base64.StdEncoding.Encode(out, b)
+
+	return out
+}
+
+func Decode(s []byte) ([]byte, error) {
+
+	out := []byte{}
+
+	_, err := base64.StdEncoding.Decode(out, s)
+
+	return out, err
 }
