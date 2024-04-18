@@ -50,7 +50,7 @@ func (user *Participant) SetUp(param *SetUpParams) error {
 	user.H = new(big.Int).Div(user.Suite.Curve.Params().N, param.Prime)
 	user.M = param.M
 	if !user.Suite.IsOnCurve(user.M) {
-		return errors.New("provided M does not exist on curve " + user.Suite.GetName())
+		return errors.New("provided M does not exist on curve " + string(user.Suite.GetName()))
 	}
 	user.W = user.ComputeW(param.Pw, param.Prime)
 

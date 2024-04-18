@@ -10,6 +10,8 @@ type Server struct {
 	httpClient http.Client
 }
 
+// TODO: create handler functions that will automatically proceed the SPAKE2 process
+
 func (s Server) Init() {
 
 }

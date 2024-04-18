@@ -12,18 +12,28 @@ import (
 )
 
 var (
-	// ecurve is the EC used
+	// password shared by the client and server
 	pw = "PythonISWAYBETTER"
+
+	// a prime that they chose to use
 	pp = int64(1231231234542132117)
 )
+
+//TODO: implement/upgrade to SPAKE2+ once this is done
 
 // Main function.
 func main() {
 
+	test := big.NewInt(50000)
+	by := test.Bytes()
+	println(by)
+
 	server := spake2.Participant{}
 	client := spake2.Participant{}
 
-	// faking M right now since I cant find a hash to curve function for golang
+	// TODO: find out how and actual implement the Hash_to_curve function
+	// faking M and N
+	// rather then generating from hash_to_curve, using a random point on curve instead
 	m, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		println(err.Error())
