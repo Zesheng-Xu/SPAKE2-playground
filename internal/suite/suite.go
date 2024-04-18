@@ -68,59 +68,57 @@ func (s *Suite) Add(p1, p2 *Point) *Point {
 // Multiply multiplies a point by a scalar on the elliptic curve.
 func (s *Suite) Multiply(p1 *Point, n *big.Int) *Point {
 
-	// just handle some basic cases
-	if n.Cmp(big.NewInt(0)) == 0 {
-		return &Point{}
-	} else if n.Cmp(big.NewInt(1)) == 0 {
-		return p1
-	}
+	// // just handle some basic cases
+	// if n.Cmp(big.NewInt(0)) == 0 {
+	// 	return &Point{}
+	// } else if n.Cmp(big.NewInt(1)) == 0 {
+	// 	return p1
+	// }
 
-	// Doing double and add method
-	// get big endian form of the n first
-	// example: big.NewInt(50000).Bytes() = [ 195, 80 ] = [11000011. 01010000] = 1100001101010000
-	bigEndianBytes := n.Bytes()
+	// // Doing double and add method
+	// // get big endian form of the n first
+	// // example: big.NewInt(50000).Bytes() = [ 195, 80 ] = [11000011. 01010000] = 1100001101010000
+	// bigEndianBytes := n.Bytes()
 
-	binaryBits := []bool{}
+	// binaryBits := []bool{}
 
-	// convert big int to binary
-	for _, b := range bigEndianBytes {
-		binaryBits = append(binaryBits, uint8ToBinaryBits(b)...)
-	}
+	// // convert big int to binary
+	// for _, b := range bigEndianBytes {
+	// 	binaryBits = append(binaryBits, uint8ToBinaryBits(b)...)
+	// }
 
-	// remove leading zeros
-	for index, b := range binaryBits {
-		if b == true {
-			binaryBits = binaryBits[index:]
-			break
-		}
-	}
+	// // remove leading zeros
+	// for index, b := range binaryBits {
+	// 	if b {
+	// 		binaryBits = binaryBits[index:]
+	// 		break
+	// 	}
+	// }
 
-	// pop leading 1 if possible
-	if len(binaryBits) > 1 {
-		binaryBits = binaryBits[1:]
-	}
+	// // pop leading 1 if possible - we know the binary cant be 1 or 0 due to check at start of the function
+	// binaryBits = binaryBits[1:]
 
-	// starting 1 p
-	p := p1
-	// iterate through the binary bits
-	for _, b := range binaryBits {
+	// // starting 1 p
+	// p := p1
+	// // iterate through the binary bits
+	// for _, b := range binaryBits {
 
-		// double p
-		pp := s.Add(p, p)
+	// 	// double p
+	// 	pp := s.Add(p, p)
 
-		// add if the bit is 1
-		if b {
-			pp = s.Add(p, pp)
-		}
+	// 	// add if the bit is 1
+	// 	if b {
+	// 		pp = s.Add(p, pp)
+	// 	}
 
-		p = pp
-	}
+	// 	p = pp
+	// }
 
-	compX, compY := s.Curve.ScalarMult(p1.X, p1.Y, n.Bytes())
-	println(compX, compY)
+	benchX, benchY := s.Curve.ScalarMult(p1.X, p1.Y, n.Bytes())
+	println(benchX, benchY)
 
 	// Return the resulting point
-	return p
+	return &Point{benchX, benchY}
 }
 
 // BaseMultiply returns n*G where G is the generator point of the curve
