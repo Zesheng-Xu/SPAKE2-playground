@@ -24,10 +24,6 @@ var (
 // Main function.
 func main() {
 
-	test := big.NewInt(50000)
-	by := test.Bytes()
-	println(by)
-
 	server := spake2.Participant{}
 	client := spake2.Participant{}
 
