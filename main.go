@@ -2,13 +2,14 @@
 package main
 
 import (
-	spake2 "SPAKE2-playground/internal/SPAKE2"
-	"SPAKE2-playground/internal/suite"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
 	"math/big"
+
+	spake2 "github.com/Zesheng-Xu/SPAKE2-playground/internal/SPAKE2"
+	"github.com/Zesheng-Xu/SPAKE2-playground/internal/suite"
 )
 
 var (

@@ -1,7 +1,6 @@
 package spake2
 
 import (
-	"SPAKE2-playground/internal/suite"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -11,6 +10,8 @@ import (
 	"io"
 	"math/big"
 	"strconv"
+
+	"github.com/Zesheng-Xu/SPAKE2-playground/internal/suite"
 )
 
 type Participant struct {

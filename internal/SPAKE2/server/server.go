@@ -1,8 +1,9 @@
 package server
 
 import (
-	spake2 "SPAKE2-playground/internal/SPAKE2"
 	"net/http"
+
+	spake2 "github.com/Zesheng-Xu/SPAKE2-playground/internal/SPAKE2"
 )
 
 type Server struct {
