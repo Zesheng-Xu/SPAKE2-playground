@@ -33,8 +33,8 @@ func NewP256Suite() *Suite {
 	s.Suite.MAC = s.MAC
 	s.Suite.L = L
 	s.Suite.A = A
-	return &s.Suite
 
+	return &s.Suite
 }
 
 // Hash defines the hash function used for this suite, following RFC 9382

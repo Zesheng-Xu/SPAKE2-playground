@@ -2,9 +2,6 @@
 package main
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"fmt"
 	"math/big"
 
@@ -28,28 +25,10 @@ func main() {
 	server := spake2.Participant{}
 	client := spake2.Participant{}
 
-	// TODO: find out how and actual implement the Hash_to_curve function
-	// faking M and N
-	// rather then generating from hash_to_curve, using a random point on curve instead
-	m, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		println(err.Error())
-	}
-
 	sharedParam := &spake2.SetUpParams{
 		Prime: big.NewInt(pp),
 		Pw:    pw,
-		M:     &suite.Point{X: m.PublicKey.X, Y: m.PublicKey.Y},
 		Suite: suite.P256,
-	}
-
-	err = server.SetUp(sharedParam)
-	if err != nil {
-		println(err.Error())
-	}
-	err = client.SetUp(sharedParam)
-	if err != nil {
-		println(err.Error())
 	}
 
 	server.Role = suite.Server // This Determines the A and B when generating Transcript
@@ -60,6 +39,15 @@ func main() {
 
 	server.OpponentIdentity = client.Identity
 	client.OpponentIdentity = server.Identity
+
+	err := server.SetUp(sharedParam)
+	if err != nil {
+		println(err.Error())
+	}
+	err = client.SetUp(sharedParam)
+	if err != nil {
+		println(err.Error())
+	}
 
 	PointServer, err := server.ComputepPoint()
 	if err != nil {

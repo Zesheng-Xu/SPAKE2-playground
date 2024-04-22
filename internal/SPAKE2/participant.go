@@ -21,7 +21,9 @@ type Participant struct {
 	H                       *big.Int
 	W                       *big.Int
 	M                       *suite.Point
+	N                       *suite.Point
 	WM                      *suite.Point
+	WN                      *suite.Point
 	Pa                      *suite.Point
 	Pb                      *suite.Point
 	K                       string
@@ -35,27 +37,44 @@ type Participant struct {
 }
 
 type SetUpParams struct {
-	Role  suite.Role
 	Pw    string
-	M     *suite.Point
 	Prime *big.Int
 	Suite suite.SuiteOptions
 }
+
+const (
+	mString = "M SPAKE2 seed OID %s"
+	nString = "N SPAKE2 seed OID %s"
+)
 
 // SetUp function sets the shared elements of the SPAKE
 func (user *Participant) SetUp(param *SetUpParams) error {
 
 	user.Suite = suite.SelectECCSuite(param.Suite)
-	user.Role = param.Role
 	user.BigPrime = param.Prime
 	user.H = new(big.Int).Div(user.Suite.Curve.Params().N, param.Prime)
-	user.M = param.M
-	if !user.Suite.IsOnCurve(user.M) {
+
+	user.M, user.N = user.CalculatePublicPoints()
+	if !user.Suite.IsOnCurve(user.M) || !user.Suite.IsOnCurve(user.N) {
 		return errors.New("provided M does not exist on curve " + string(user.Suite.GetName()))
 	}
 	user.W = user.ComputeW(param.Pw, param.Prime)
 
 	return nil
+}
+
+// CalculatePublicPoints calculates M and N used by server and client respectivly
+func (user *Participant) CalculatePublicPoints() (m, n *suite.Point) {
+	m = user.Suite.HashToCurve(fmt.Sprintf(mString, user.Suite.GetName()))
+	n = user.Suite.HashToCurve(fmt.Sprintf(nString, user.Suite.GetName()))
+
+	switch user.Role {
+	case suite.Server:
+		return m, n
+	default:
+		return n, m
+	}
+
 }
 
 // ComputeW computes W that will be shared between server and client derived from password
@@ -77,11 +96,12 @@ func (user *Participant) ComputepPoint() (p *suite.Point, err error) {
 	user.X = x
 	pointX := user.Suite.BaseMultiply(x)
 	pointWM := user.Suite.Multiply(user.M, user.W)
-
 	user.WM = pointWM
 
-	pointP := user.Suite.Add(pointX, pointWM)
+	pointWN := user.Suite.Multiply(user.N, user.W)
+	user.WN = pointWN
 
+	pointP := user.Suite.Add(pointX, pointWM)
 	user.Pa = pointP
 
 	return user.Pa, nil
@@ -89,7 +109,7 @@ func (user *Participant) ComputepPoint() (p *suite.Point, err error) {
 
 // ComputepGroupElement finds K, the shared value across A and B
 func (user *Participant) ComputepGroupElement(b *suite.Point) (k string) {
-	ob := user.Suite.Subtract(b, user.WM)
+	ob := user.Suite.Subtract(b, user.WN)
 	hx := new(big.Int).Mul(user.H, user.X)
 
 	pointK := user.Suite.Multiply(ob, hx)
@@ -101,6 +121,7 @@ func (user *Participant) ComputepGroupElement(b *suite.Point) (k string) {
 	return user.K
 }
 
+// ComputeTranscript creates a TT transcript for this SPAKE2 exchange
 func (user *Participant) ComputeTranscript() (tt string) {
 	// TT = len(A)  || A
 	// || len(B)  || B
@@ -160,6 +181,7 @@ func (user *Participant) DeriveKeys() (ke, kca, kcb []byte) {
 	return ke, kca, kcb
 }
 
+// Encrypt function creates an encrypted text based on drived session key and provided plain text
 func (user *Participant) Encrypt(plainText []byte) ([]byte, error) {
 	block, err := aes.NewCipher(user.SessionPrivateKey)
 	if err != nil {
@@ -178,6 +200,7 @@ func (user *Participant) Encrypt(plainText []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
+// Decrypt function decrypts message received based on derived key
 func (user *Participant) Decrypt(ciphertext []byte) ([]byte, error) {
 	block, err := aes.NewCipher(user.SessionPrivateKey)
 	if err != nil {
@@ -209,6 +232,7 @@ func (user *Participant) ConfirmMAC(receivedMAC []byte) (bool, error) {
 
 }
 
+// ProduceMacMessage creates Mac message based on RFC-9382 defiend format
 func (user *Participant) ProduceMacMessage() []byte {
 
 	msg, err := user.Encrypt(user.SessionConfirmationKey)

@@ -128,6 +128,16 @@ func (s *Suite) Subtract(point1, point2 *Point) (resultPoint *Point) {
 	return s.Add(point1, point2.Negate(s.Curve.Params().P))
 }
 
+// HashToCurve creates a point from a given string
+func (s *Suite) HashToCurve(str string) (p *Point) {
+
+	hash := s.Hash(str)
+	x := new(big.Int).SetBytes(hash[:])
+	p = s.BaseMultiply(x)
+
+	return p
+}
+
 // IsOnCurve Checks if the provided point lies on the EC
 func (s *Suite) IsOnCurve(p *Point) bool {
 	// y ^ 2 mod p
@@ -136,7 +146,7 @@ func (s *Suite) IsOnCurve(p *Point) bool {
 	// x ^ 3
 	right := new(big.Int).Exp(p.X, big.NewInt(3), s.Curve.Params().P)
 
-	// - 3x
+	// + ax
 	right = right.Add(right, new(big.Int).Mul(p.X, s.A))
 
 	// + b
