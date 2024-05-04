@@ -28,18 +28,20 @@ func main() {
 
 	// Initialize the server
 	s := &server.Server{}
-	err := s.Init("ServerIdentity")
+	err := s.Init("Bob")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Start the server
-	log.Println("Starting the server on port 8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	go func() {
+		// Start the server
+		log.Println("Starting the server on port 8080")
+		log.Fatal(http.ListenAndServe(":8080", nil))
+	}()
 
 	// Create a SPAKE2HelloRequest
 	req := spake2.SPAKE2HelloRequest{
-		Identity: "Bob",
+		Identity: "Alice",
 		Suite:    suite.P256,
 		Prime:    big.NewInt(pp),
 	}
@@ -60,71 +62,96 @@ func main() {
 	// Print the response status
 	log.Println("Response status:", resp.Status)
 
-	//TODO remove these code - reference for now
-	// server := spake2.Participant{}
-	// client := spake2.Participant{}
+	// Decode the response body into the struct
+	var helloResp spake2.SPAKE2HelloResponse
+	err = json.NewDecoder(resp.Body).Decode(&helloResp)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// sharedParam := &spake2.SetUpParams{
-	// 	Prime: big.NewInt(pp),
-	// 	Pw:    pw,
-	// 	Suite: suite.P256,
-	// }
+	// Compute the client's public key
+	client := spake2.Participant{}
+	sharedParam := &spake2.SetUpParams{
+		Prime: big.NewInt(pp),
+		Pw:    pw,
+		Suite: suite.P256,
+	}
+	client.Role = suite.Client
+	client.Identity = "Alice"
+	client.SetUp(sharedParam)
+	client.OpponentIdentity = helloResp.Identity
+	PointClient, err := client.ComputepPoint()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// server.Role = suite.Server // This Determines the A and B when generating Transcript
-	// client.Role = suite.Client
+	// Create a SPAKE2PublickeyRequest
+	pubKeyReq := spake2.SPAKE2PublickeyRequest{
+		PubliCKey: PointClient,
+	}
 
-	// server.Identity = "Alice"
-	// client.Identity = "Bob"
+	// Encode the request into JSON
+	reqBody, err = json.Marshal(pubKeyReq)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// server.SetUp(sharedParam)
+	// Send the public key to the server
+	resp, err = http.Post("http://localhost:8080/clientPublicKey", "application/json", bytes.NewBuffer(reqBody))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
 
-	// client.SetUp(sharedParam)
+	// Decode the response body into the struct
+	var pubKeyResp spake2.SPAKE2PublicKeyResponse
+	err = json.NewDecoder(resp.Body).Decode(&pubKeyResp)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// server.OpponentIdentity = client.Identity
-	// client.OpponentIdentity = server.Identity
+	// Compute the shared key
+	client.ComputepGroupElement(pubKeyResp.PublicKey)
+	client.ComputeTranscript()
+	client.DeriveKeys()
 
-	// PointServer, err := server.ComputepPoint()
-	// if err != nil {
-	// 	println(err.Error())
-	// }
+	// Create a SPAKE2MACRequest
+	macReq := spake2.SPAKE2MACRequest{
+		MACMessage: client.ProduceMacMessage(),
+	}
 
-	// PointClient, err := client.ComputepPoint()
-	// if err != nil {
-	// 	println(err.Error())
-	// }
+	// Encode the request into JSON
+	reqBody, err = json.Marshal(macReq)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// println("Selected ECC: " + server.Suite.Name)
+	// Send the MAC to the server
+	resp, err = http.Post("http://localhost:8080/clientMAC", "application/json", bytes.NewBuffer(reqBody))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
 
-	// println(fmt.Sprintf("Server p - big prime: %s, \n Client p - big prime: %s,", server.BigPrime, client.BigPrime))
-	// println(fmt.Sprintf("Server w derived from password: %s, \n Client w derived from password: %s,", server.W, client.W))
-	// println(fmt.Sprintf("Server H: %s, \n Client H: %s,", server.H, client.H))
-	// println(fmt.Sprintf("Server x - random factor [0, p): %s, \n Client x - random factor [0, p): %s,", server.X, client.X))
-	// println(fmt.Sprintf("Server pA: %s, \n Client pB: %s,", server.Pa, client.Pa))
-	// sk := server.ComputepGroupElement(PointClient)
+	// Decode the response body into the struct
+	var macResp spake2.SPAKE2MACResponse
+	err = json.NewDecoder(resp.Body).Decode(&macResp)
+	if err != nil {
+		log.Fatal(err)
+	}
+	println("Server confirmed Client Mac")
 
-	// ck := client.ComputepGroupElement(PointServer)
+	// Confirm the server's MAC
+	confirm, err := client.ConfirmMAC(macResp.MACMessage)
+	if err != nil || !confirm {
+		log.Fatal("Error while confirming server MAC message")
+	}
+	println("Client confirmed Server Mac")
 
-	// println(fmt.Sprintf("Server calculated k to derive session key: %s, \n Client calculated k to derive session key: %s,", sk, ck))
+	// Now you can encrypt and decrypt messages using the derived keys
+	message, _ := client.Encrypt([]byte("Hello World"))
+	println("Client send encrypted text:" + string(message))
 
-	// stt := server.ComputeTranscript()
-
-	// ctt := client.ComputeTranscript()
-
-	// println(fmt.Sprintf("Server TT to input KDF: %s, \n Client TT to input KDF: %s,", stt, ctt))
-
-	// server.DeriveKeys()
-
-	// client.DeriveKeys()
-
-	// sMac, _ := server.ConfirmMAC(client.ProduceMacMessage())
-	// cMac, _ := client.ConfirmMAC(server.ProduceMacMessage())
-
-	// println("Server confirm Client MAC:", sMac)
-	// println("Client confirm Server MAC:", cMac)
-
-	// message, _ := client.Encrypt([]byte("Hello World"))
-	// println("Client send encrypted text:" + string(message))
-
-	// message, _ = server.Decrypt(message)
-	// println("Server decrypted text:" + string(message))
+	message, _ = client.Decrypt(message)
+	println("Server decrypted text:" + string(message))
 }

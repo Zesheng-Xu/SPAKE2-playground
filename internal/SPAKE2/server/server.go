@@ -22,7 +22,7 @@ var (
 // TODO: create handler functions that will automatically proceed the SPAKE2 process
 
 // Init function populates a new server instance
-func (s Server) Init(identity string) (err error) {
+func (s *Server) Init(identity string) (err error) {
 	s.spake.Role = suite.Server
 	s.spake.Identity = identity
 	s.clientMapping, err = s.getClienMapping()
@@ -37,7 +37,7 @@ func (s Server) Init(identity string) (err error) {
 }
 
 // HandleHello handles hello from client for SPAKE2
-func (s Server) HandleHello(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandleHello(w http.ResponseWriter, r *http.Request) {
 	// Decode the request body into the struct
 	var req spake2.SPAKE2HelloRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -79,7 +79,7 @@ func (s Server) HandleHello(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleClientPublicKey handles public key presented by client
-func (s Server) HandleClientPublicKey(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandleClientPublicKey(w http.ResponseWriter, r *http.Request) {
 
 	// Decode the request body into the struct
 	var req spake2.SPAKE2PublickeyRequest
@@ -113,7 +113,7 @@ func (s Server) HandleClientPublicKey(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleClientPublicKey handles public key presented by client
-func (s Server) HandleClientMAC(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandleClientMAC(w http.ResponseWriter, r *http.Request) {
 
 	// Decode the request body into the struct
 	var req spake2.SPAKE2MACRequest
@@ -151,6 +151,6 @@ func (s *Server) addFeatures() {
 //TODO: after mac-ing, decrypt and enceypt evey message from and to client
 
 // getClienMapping returns clients mapped to their password
-func (s Server) getClienMapping() (map[string]string, error) {
+func (s *Server) getClienMapping() (map[string]string, error) {
 	return clientPasswordMap, nil
 }
