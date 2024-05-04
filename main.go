@@ -2,10 +2,14 @@
 package main
 
 import (
-	"fmt"
+	"bytes"
+	"encoding/json"
+	"log"
 	"math/big"
+	"net/http"
 
 	spake2 "github.com/Zesheng-Xu/SPAKE2-playground/internal/SPAKE2"
+	"github.com/Zesheng-Xu/SPAKE2-playground/internal/SPAKE2/server"
 	"github.com/Zesheng-Xu/SPAKE2-playground/internal/suite"
 )
 
@@ -22,75 +26,105 @@ var (
 // Main function.
 func main() {
 
-	server := spake2.Participant{}
-	client := spake2.Participant{}
-
-	sharedParam := &spake2.SetUpParams{
-		Prime: big.NewInt(pp),
-		Pw:    pw,
-		Suite: suite.P256,
-	}
-
-	server.Role = suite.Server // This Determines the A and B when generating Transcript
-	client.Role = suite.Client
-
-	server.Identity = "Alice"
-	client.Identity = "Bob"
-
-	server.OpponentIdentity = client.Identity
-	client.OpponentIdentity = server.Identity
-
-	err := server.SetUp(sharedParam)
+	// Initialize the server
+	s := &server.Server{}
+	err := s.Init("ServerIdentity")
 	if err != nil {
-		println(err.Error())
+		log.Fatal(err)
 	}
-	err = client.SetUp(sharedParam)
+
+	// Start the server
+	log.Println("Starting the server on port 8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
+
+	// Create a SPAKE2HelloRequest
+	req := spake2.SPAKE2HelloRequest{
+		Identity: "Bob",
+		Suite:    suite.P256,
+		Prime:    big.NewInt(pp),
+	}
+
+	// Encode the request into JSON
+	reqBody, err := json.Marshal(req)
 	if err != nil {
-		println(err.Error())
+		log.Fatal(err)
 	}
 
-	PointServer, err := server.ComputepPoint()
+	// Send the request to the server
+	resp, err := http.Post("http://localhost:8080/hello", "application/json", bytes.NewBuffer(reqBody))
 	if err != nil {
-		println(err.Error())
+		log.Fatal(err)
 	}
+	defer resp.Body.Close()
 
-	PointClient, err := client.ComputepPoint()
-	if err != nil {
-		println(err.Error())
-	}
+	// Print the response status
+	log.Println("Response status:", resp.Status)
 
-	println("Selected ECC: " + server.Suite.Name)
+	//TODO remove these code - reference for now
+	// server := spake2.Participant{}
+	// client := spake2.Participant{}
 
-	println(fmt.Sprintf("Server p - big prime: %s, \n Client p - big prime: %s,", server.BigPrime, client.BigPrime))
-	println(fmt.Sprintf("Server w derived from password: %s, \n Client w derived from password: %s,", server.W, client.W))
-	println(fmt.Sprintf("Server H: %s, \n Client H: %s,", server.H, client.H))
-	println(fmt.Sprintf("Server x - random factor [0, p): %s, \n Client x - random factor [0, p): %s,", server.X, client.X))
-	println(fmt.Sprintf("Server pA: %s, \n Client pB: %s,", server.Pa, client.Pa))
-	sk := server.ComputepGroupElement(PointClient)
+	// sharedParam := &spake2.SetUpParams{
+	// 	Prime: big.NewInt(pp),
+	// 	Pw:    pw,
+	// 	Suite: suite.P256,
+	// }
 
-	ck := client.ComputepGroupElement(PointServer)
+	// server.Role = suite.Server // This Determines the A and B when generating Transcript
+	// client.Role = suite.Client
 
-	println(fmt.Sprintf("Server calculated k to derive session key: %s, \n Client calculated k to derive session key: %s,", sk, ck))
+	// server.Identity = "Alice"
+	// client.Identity = "Bob"
 
-	stt := server.ComputeTranscript()
+	// server.SetUp(sharedParam)
 
-	ctt := client.ComputeTranscript()
+	// client.SetUp(sharedParam)
 
-	println(fmt.Sprintf("Server TT to input KDF: %s, \n Client TT to input KDF: %s,", stt, ctt))
+	// server.OpponentIdentity = client.Identity
+	// client.OpponentIdentity = server.Identity
 
-	server.DeriveKeys()
+	// PointServer, err := server.ComputepPoint()
+	// if err != nil {
+	// 	println(err.Error())
+	// }
 
-	client.DeriveKeys()
+	// PointClient, err := client.ComputepPoint()
+	// if err != nil {
+	// 	println(err.Error())
+	// }
 
-	sMac, _ := server.ConfirmMAC(client.ProduceMacMessage())
-	cMac, _ := client.ConfirmMAC(server.ProduceMacMessage())
+	// println("Selected ECC: " + server.Suite.Name)
 
-	println("Server confirm Client MAC:", sMac)
-	println("Client confirm Server MAC:", cMac)
+	// println(fmt.Sprintf("Server p - big prime: %s, \n Client p - big prime: %s,", server.BigPrime, client.BigPrime))
+	// println(fmt.Sprintf("Server w derived from password: %s, \n Client w derived from password: %s,", server.W, client.W))
+	// println(fmt.Sprintf("Server H: %s, \n Client H: %s,", server.H, client.H))
+	// println(fmt.Sprintf("Server x - random factor [0, p): %s, \n Client x - random factor [0, p): %s,", server.X, client.X))
+	// println(fmt.Sprintf("Server pA: %s, \n Client pB: %s,", server.Pa, client.Pa))
+	// sk := server.ComputepGroupElement(PointClient)
 
-	message, _ := client.Encrypt([]byte("Hello World"))
-	println("Client send encrypted text:" + string(message))
+	// ck := client.ComputepGroupElement(PointServer)
 
-	message, _ = server.Decrypt(message)
-	println("Server decrypted text:" + string(message))
+	// println(fmt.Sprintf("Server calculated k to derive session key: %s, \n Client calculated k to derive session key: %s,", sk, ck))
+
+	// stt := server.ComputeTranscript()
+
+	// ctt := client.ComputeTranscript()
+
+	// println(fmt.Sprintf("Server TT to input KDF: %s, \n Client TT to input KDF: %s,", stt, ctt))
+
+	// server.DeriveKeys()
+
+	// client.DeriveKeys()
+
+	// sMac, _ := server.ConfirmMAC(client.ProduceMacMessage())
+	// cMac, _ := client.ConfirmMAC(server.ProduceMacMessage())
+
+	// println("Server confirm Client MAC:", sMac)
+	// println("Client confirm Server MAC:", cMac)
+
+	// message, _ := client.Encrypt([]byte("Hello World"))
+	// println("Client send encrypted text:" + string(message))
+
+	// message, _ = server.Decrypt(message)
+	// println("Server decrypted text:" + string(message))
 }

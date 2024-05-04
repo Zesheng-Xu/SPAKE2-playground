@@ -5,7 +5,6 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -37,9 +36,10 @@ type Participant struct {
 }
 
 type SetUpParams struct {
-	Pw    string
-	Prime *big.Int
-	Suite suite.SuiteOptions
+	Pw               string
+	OpponentIdentity string
+	Prime            *big.Int
+	Suite            suite.SuiteOptions
 }
 
 const (
@@ -48,19 +48,16 @@ const (
 )
 
 // SetUp function sets the shared elements of the SPAKE
-func (user *Participant) SetUp(param *SetUpParams) error {
+func (user *Participant) SetUp(param *SetUpParams) {
 
 	user.Suite = suite.SelectECCSuite(param.Suite)
 	user.BigPrime = param.Prime
+	user.OpponentIdentity = param.OpponentIdentity
+
 	user.H = new(big.Int).Div(user.Suite.Curve.Params().N, param.Prime)
-
 	user.M, user.N = user.CalculatePublicPoints()
-	if !user.Suite.IsOnCurve(user.M) || !user.Suite.IsOnCurve(user.N) {
-		return errors.New("provided M does not exist on curve " + string(user.Suite.GetName()))
-	}
-	user.W = user.ComputeW(param.Pw, param.Prime)
 
-	return nil
+	user.W = user.ComputeW(param.Pw)
 }
 
 // CalculatePublicPoints calculates M and N used by server and client respectivly
@@ -78,10 +75,10 @@ func (user *Participant) CalculatePublicPoints() (m, n *suite.Point) {
 }
 
 // ComputeW computes W that will be shared between server and client derived from password
-func (user *Participant) ComputeW(pw string, p *big.Int) *big.Int {
+func (user *Participant) ComputeW(pw string) *big.Int {
 	hash := user.Suite.Hash(pw)
 	w := new(big.Int).SetBytes(hash[:])
-	w.Mod(w, p)
+	w.Mod(w, user.Suite.Curve.Params().P)
 
 	return w
 }
